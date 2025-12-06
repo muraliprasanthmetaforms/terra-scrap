@@ -783,6 +783,58 @@ def download_duplicates(scraper_id):
     return Response(out.getvalue(), mimetype='text/csv', 
                    headers={"Content-disposition":"attachment; filename=duplicate_emails.csv"})
 
+@app.route('/debug')
+def debug_route():
+    """Debug route for production troubleshooting - REMOVE IN PRODUCTION"""
+    import os
+    import sys
+    from datetime import datetime
+    
+    try:
+        info = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "environment": {
+                "SECRET_KEY_SET": bool(os.environ.get('SECRET_KEY')),
+                "SECRET_KEY_LENGTH": len(os.environ.get('SECRET_KEY', '')),
+                "MAIL_USERNAME": os.environ.get('MAIL_USERNAME', 'NOT_SET'),
+                "MAIL_PASSWORD_SET": bool(os.environ.get('MAIL_PASSWORD')),
+                "PORT": os.environ.get('PORT', 'NOT_SET'),
+                "FLASK_ENV": os.environ.get('FLASK_ENV', 'NOT_SET'),
+            },
+            "flask_config": {
+                "SECRET_KEY_SET": bool(app.config.get('SECRET_KEY')),
+                "MAIL_SERVER": app.config.get('MAIL_SERVER'),
+                "MAIL_PORT": app.config.get('MAIL_PORT'),
+                "MAIL_USE_TLS": app.config.get('MAIL_USE_TLS'),
+                "MAIL_USERNAME": app.config.get('MAIL_USERNAME'),
+                "DATABASE_URI": app.config.get('SQLALCHEMY_DATABASE_URI'),
+            },
+            "python_info": {
+                "version": sys.version,
+                "platform": sys.platform,
+            }
+        }
+        
+        # Test database
+        try:
+            user_count = User.query.count()
+            users = User.query.all()
+            info["database"] = {
+                "status": "connected",
+                "user_count": user_count,
+                "users": [{"id": u.id, "username": u.username, "email": u.email, "approved": u.is_approved} for u in users],
+                "url": app.config.get('SQLALCHEMY_DATABASE_URI'),
+            }
+        except Exception as e:
+            info["database"] = {
+                "status": "error",
+                "error": str(e),
+            }
+        
+        return jsonify(info)
+    except Exception as e:
+        return jsonify({"error": str(e), "type": "debug_route_error"})
+
 # HTML Templates
 LOGIN_HTML = """
 <!doctype html>
